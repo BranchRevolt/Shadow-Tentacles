@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Shadow Tentacles. Reaching into the dark for what is worth reading:
+       one head, tentacles feeling outward, each ending on a source. -->
+  <rect width="512" height="512" rx="96" fill="#111017"/>
+  <g fill="none" stroke="#45b3b8" stroke-width="16" stroke-linecap="round">
+    <path d="M256 232 C 176 250, 128 300, 118 372"/>
+    <path d="M256 232 C 206 268, 190 330, 200 396"/>
+    <path d="M256 232 C 256 288, 256 340, 256 404"/>
+    <path d="M256 232 C 306 268, 322 330, 312 396"/>
+    <path d="M256 232 C 336 250, 384 300, 394 372"/>
+  </g>
+  <g fill="#45b3b8">
+    <circle cx="118" cy="386" r="16"/>
+    <circle cx="200" cy="410" r="16"/>
+    <circle cx="256" cy="418" r="16"/>
+    <circle cx="312" cy="410" r="16"/>
+    <circle cx="394" cy="386" r="16"/>
+  </g>
+  <ellipse cx="256" cy="180" rx="98" ry="86" fill="#45b3b8"/>
+  <g fill="#111017">
+    <circle cx="224" cy="176" r="17"/>
+    <circle cx="288" cy="176" r="17"/>
+  </g>
+</svg>
