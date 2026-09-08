@@ -1,0 +1,123 @@
+# Shadow Tentacles — sources
+#
+# Yours to edit and meant to be shared. Delete what you do not read, add what
+# you do.
+#
+#   kind = "rss"        a feed: RSS, Atom or JSON Feed
+#   kind = "json_api"   any service answering with JSON; needs [source.map]
+#   kind = "html_list"  a listing page for a site with no feed
+#
+# A source is reached three ways, used together. `url` is its feed: the last day
+# or two, carrying the summary the publisher wrote. Its sitemap is the complete
+# answer, with dates, and the news maps carry headlines as well; it is found
+# through robots.txt, and `sitemap_url` points at one that is not listed there.
+# An empty `sitemap_url` says the publisher has none and stops the search.
+# `search_url` is for the few sources that can be asked a question directly.
+#
+# An address may carry {query}, {days}, {min_points}, {since}, {until},
+# {since_date} and {until_date}. They are filled from the settings before the
+# request, so the service does the filtering instead of this program discarding
+# the results afterwards.
+
+[settings]
+ui_lang = "en"
+output_lang = "en"
+keywords = []
+collect_days = 3
+summarize_limit = 30
+
+# ─────────────────────────── Russian ───────────────────────────
+
+[[source]]
+kind = "rss"
+title = "Meduza"
+url = "https://meduza.io/rss/all"
+lang = "ru"
+
+[[source]]
+kind = "rss"
+title = "Интерфакс"
+url = "https://www.interfax.ru/rss.asp"
+lang = "ru"
+
+# ─────────────────────────── English ───────────────────────────
+
+[[source]]
+kind = "rss"
+title = "BBC World"
+url = "https://feeds.bbci.co.uk/news/world/rss.xml"
+lang = "en"
+
+[[source]]
+kind = "rss"
+title = "The Guardian — World"
+url = "https://www.theguardian.com/world/rss"
+lang = "en"
+
+# ─────────────────────────── German ────────────────────────────
+
+[[source]]
+kind = "rss"
+title = "tagesschau"
+url = "https://www.tagesschau.de/xml/rss2/"
+lang = "de"
+
+[[source]]
+kind = "rss"
+title = "Spiegel — Schlagzeilen"
+url = "https://www.spiegel.de/schlagzeilen/tops/index.rss"
+lang = "de"
+
+# ─────────────────────────── French ────────────────────────────
+
+[[source]]
+kind = "rss"
+title = "Le Monde — Une"
+url = "https://www.lemonde.fr/rss/une.xml"
+lang = "fr"
+
+[[source]]
+kind = "rss"
+title = "France 24"
+url = "https://www.france24.com/fr/rss"
+lang = "fr"
+
+# ───────────────────── Services, as configuration ─────────────────────
+
+# Hacker News through its search API. The score and date bounds go into the
+# address so the service applies them, the discussion link is built from the
+# item's id, and a post with no outbound link (Ask HN, Show HN) points at its
+# own thread.
+[[source]]
+kind = "json_api"
+title = "Hacker News"
+url = "https://hn.algolia.com/api/v1/search_by_date?tags=story&hitsPerPage=50&query={query}&numericFilters=points%3E{min_points}%2Ccreated_at_i%3E{since}"
+lang = "en"
+min_points = 100
+
+[source.map]
+items = "hits"
+url = "url"
+title = "title"
+published = "created_at_i"
+score = "points"
+comments = "num_comments"
+excerpt = "story_text"
+discussion_template = "https://news.ycombinator.com/item?id={objectID}"
+url_from_discussion = true
+
+# A plain JSON service, to show how little it takes.
+[[source]]
+kind = "json_api"
+title = "Lobsters"
+url = "https://lobste.rs/newest.json"
+lang = "en"
+enabled = false
+
+[source.map]
+url = "url"
+title = "title"
+published = "created_at"
+score = "score"
+comments = "comment_count"
+discussion = "comments_url"

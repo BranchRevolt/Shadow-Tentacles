@@ -1,0 +1,818 @@
+/* SPDX-FileCopyrightText: 2026 WarpCoreDev */
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Shadow Tentacles — desktop window.
+   Cool violet-grey neutrals with a deep teal accent, and system fonts
+   throughout, so nothing waits on a font server. */
+
+:root {
+  /* The rail's width, named because two rules depend on it: the page grid, and
+     the notification that has to sit in the middle of what is beside it. */
+  --rail: 17rem;
+  --ground:      #f4f4f7;
+  --surface:     #ffffff;
+  --surface-alt: #ececf2;
+  --line:        #d9d8e2;
+  --line-soft:   #e7e6ee;
+  --ink:         #17151d;
+  --ink-mid:     #4d4a5c;
+  --ink-soft:    #706d80;
+  --accent:      #0c6f75;
+  --accent-ink:  #ffffff;
+  --warn:        #8a5a06;
+  --risk:        #9c3838;
+  --ok:          #2f6b45;
+  --radius: 4px;
+  --serif: "Newsreader", Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground:      #111017;
+    --surface:     #191822;
+    --surface-alt: #21202c;
+    --line:        #33313f;
+    --line-soft:   #272632;
+    --ink:         #e9e8f0;
+    --ink-mid:     #b0adbf;
+    --ink-soft:    #8a8799;
+    --accent:      #45b3b8;
+    --accent-ink:  #0d1416;
+    --warn:        #d3a24e;
+    --risk:        #d97a7a;
+    --ok:          #6cb98a;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  display: grid;
+  grid-template-columns: var(--rail) minmax(0, 1fr);
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ---------- rail ---------- */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.25rem 1.1rem 2rem;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  overflow-y: auto;
+}
+
+.brand h1 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 1.35rem;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.3rem;
+}
+
+.block h2 {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0 0 0.55rem;
+}
+
+.muted { color: var(--ink-soft); margin: 0; }
+.small { font-size: 0.78rem; }
+.mono { font-family: var(--mono); font-size: 0.8rem; margin: 0; word-break: break-all; }
+
+.actions { display: flex; flex-direction: column; gap: 0.4rem; }
+
+button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface-alt);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.45; cursor: default; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+button.danger { background: transparent; border-color: var(--risk); color: var(--risk); }
+button.ghost { background: transparent; }
+
+.langs { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+.chip {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.5rem;
+  background: transparent;
+  text-align: center;
+}
+.chip[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.sources, .verdicts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.sources li, .verdicts li {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  gap: 0.4rem;
+  align-items: baseline;
+  font-size: 0.8rem;
+  color: var(--ink-mid);
+}
+.sources li span:first-child { color: var(--accent); }
+.sources li.off { opacity: 0.45; }
+.sources li span:nth-child(2), .verdicts li span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.verdicts li span:last-child, .sources li span:last-child {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Any `display` an author writes beats the browser's own rule for [hidden], so
+   a block given `display: flex` would stay on screen however often the script
+   hid it. This covers every element that is ever toggled. */
+[hidden] {
+  display: none !important;
+}
+
+/* ---------- main ---------- */
+
+main {
+  overflow-y: auto;
+  padding: 1.5rem clamp(1.2rem, 4vw, 3rem) 4rem;
+}
+
+/* Every screen but the feed is a column of text and controls, and a column has
+   a width past which it stops being readable. Centred rather than pinned left,
+   so a maximised window does not leave two thirds of itself blank. The feed is
+   the exception: it grows into more columns instead. */
+.view {
+  max-width: 72rem;
+  margin-inline: auto;
+}
+.view[data-view="feed"] {
+  max-width: none;
+  /* Room under the last card for the panel pinned over that corner, so the end
+     of the feed is readable rather than half under a box. */
+  padding-bottom: 7rem;
+}
+
+.progress { position: sticky; top: 0; z-index: 5; padding-bottom: 0.9rem; background: var(--ground); }
+.bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.bar span { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.2s ease; }
+/* A phase whose length nobody can say: loading a model reads five gigabytes
+   without a word about how far it has got. Movement with no number is honest —
+   a bar sitting at zero for half a minute reads as nothing happening at all. */
+.bar.unknown span { width: 35%; transition: none; animation: sweep 1.2s ease-in-out infinite; }
+@keyframes sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(290%); }
+}
+#progress-label { margin-top: 0.4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Over the page rather than in the flow, where it would push everything below
+   it down on arrival. Top centre, where a notification goes. */
+.toast {
+  position: fixed;
+  top: 1.2rem;
+  /* Centred over the working area, not over the window: `fixed` measures from
+     the window, and the rail owns the first 17rem of it, so a box at the
+     window's centre sits left of the page the reader is looking at. Half the
+     rail puts it back. */
+  left: calc(50% + var(--rail) / 2);
+  transform: translateX(-50%);
+  z-index: 20;
+  max-width: min(34rem, calc(100vw - var(--rail) - 3rem));
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent);
+  background: var(--surface);
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.28);
+}
+.toast.bad { border-left-color: var(--risk); color: var(--risk); }
+
+/* ---------- reading aloud, as a bar ---------- */
+
+/* Pinned along the foot of the working area, not the window: the rail owns the
+   left of the screen and the bar is about the feed, not about the rail. */
+.player {
+  position: fixed;
+  left: var(--rail);
+  right: 0;
+  bottom: 0;
+  z-index: 18;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -6px 20px rgb(0 0 0 / 0.22);
+}
+/* The position runs along the bar's own top edge rather than sitting inside it
+   as another widget: it is the one thing that has to be readable at a glance
+   from across a room. */
+.player-line { height: 3px; background: var(--line); }
+.player-line span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.4s linear;
+}
+.player-body {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.5rem 1.2rem 0.6rem;
+}
+/* A round button for a transport control, which is what every player has and
+   what a hand reaches for without reading. */
+.ghost.round {
+  border-radius: 50%;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ghost.round .icon { margin: 0; width: 1.1rem; height: 1.1rem; vertical-align: 0; }
+
+/* Which mark the play button shows. A class rather than the `hidden` attribute,
+   because `hidden` is an HTML attribute and an `<svg>` is a foreign element, so
+   engines disagree over whether it applies. */
+#player-toggle .mark-play { display: none; }
+#player-toggle.paused .mark-pause { display: none; }
+#player-toggle.paused .mark-play { display: inline; }
+
+/* The title is a button because it does something: it takes you to the card. */
+.player-what {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: var(--ink);
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.player-what:hover { color: var(--accent); }
+.player-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+/* The card being read, marked the way everything else here is marked. */
+.card.reading { border-left: 2px solid var(--accent); }
+
+/* With the bar up, the pinned notes and the end of the list move above it
+   rather than under it. */
+body.playing .feed-notes { bottom: 5.4rem; }
+body.playing .view[data-view="feed"] { padding-bottom: 12rem; }
+
+/* The box for searching what is already here, above what it searches. It is a
+   search box rather than a text one, so emptying it is the field's own cross
+   and not a button of ours standing next to it. */
+.feed-search {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.feed-search input {
+  flex: 1;
+  min-width: 0;
+}
+.feed-search button { flex: none; }
+
+/* One readable column when there is room for one, more as the window grows.
+   A fixed measure left a maximised window two-thirds empty. */
+.feed {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 27rem), 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+/* The foot of the feed: it says a page is on its way, and its coming into view
+   is what asks for that page. Kept out of the grid above so a half-drawn row
+   does not have a spinner sitting in it. */
+.feed-end {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 1.4rem 0;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+.spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+/* Someone who has asked the system for less movement gets a mark that does not
+   move rather than one that spins slower. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; border-top-color: var(--line); }
+}
+
+/* A lone card takes the full width; two and up keep their columns. One card in
+   the first column of a maximised window reads as a broken layout. */
+.feed.alone {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.25rem;
+}
+.card h3 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 1.22rem;
+  line-height: 1.25;
+  margin: 0 0 0.45rem;
+  text-wrap: balance;
+}
+.card .meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.75rem;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  margin-bottom: 0.85rem;
+}
+.card ul { margin: 0 0 0.85rem; padding-left: 1.1rem; }
+.card li { margin-bottom: 0.3rem; color: var(--ink-mid); }
+.card li::marker { color: var(--accent); }
+.card .tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.6rem; }
+.card .tags span {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+  padding: 0.05rem 0.35rem;
+}
+.card a { color: var(--accent); font-size: 0.78rem; text-decoration: none; word-break: break-all; }
+.card a:hover { text-decoration: underline; }
+
+.empty { max-width: 32rem; margin: 4rem auto; text-align: center; color: var(--ink-soft); }
+.empty h2 { font-family: var(--serif); font-weight: 500; color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+
+/* ---------- navigation and views ---------- */
+
+.nav { display: flex; flex-direction: column; gap: 0.15rem; }
+.nav-item {
+  background: transparent;
+  border-color: transparent;
+  padding: 0.35rem 0.6rem;
+}
+.nav-item[aria-pressed="true"] {
+  background: var(--surface-alt);
+  border-color: var(--line);
+  font-weight: 600;
+}
+
+.view-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.1rem;
+}
+.view-head h2 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 1.5rem;
+  margin: 0;
+}
+.view > .muted { margin-bottom: 1.2rem; }
+
+/* ---------- forms ---------- */
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.2rem 1.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  max-width: 44rem;
+  margin-inline: auto;
+  width: 100%;
+}
+.panel h3 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 1.15rem;
+  margin: 0;
+}
+.panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  font-size: 0.85rem;
+  color: var(--ink-mid);
+}
+/* The open dropdown is painted by the platform, not by the page, and it does
+   not inherit from the <select>. Without these two rules WebKitGTK draws the
+   list with its own light background and our light text on top of it, and the
+   highlighted row is white on white — invisible. */
+option {
+  background: var(--surface);
+  color: var(--ink);
+}
+select { color-scheme: light dark; }
+
+/* Boxes you type in. A radio or a checkbox is not one: a border, radius and
+   padding would draw a square around a control the platform has already drawn,
+   so those are left to the platform and only tinted. */
+input:not([type="radio"]):not([type="checkbox"]),
+select,
+textarea {
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--ink);
+  background: var(--ground);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.4rem 0.55rem;
+  width: 100%;
+}
+
+input[type="radio"],
+input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--accent);
+  margin: 0;
+}
+textarea { resize: vertical; font-family: var(--mono); font-size: 0.82rem; }
+/* `:focus-visible`, not `:focus`. A radio or checkbox clicked with the mouse
+   keeps focus until something else takes it, and a ring drawn all that time
+   reads as a second box over the control. Keyboard navigation still gets the
+   ring, and a text field gets it either way. */
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+  border-color: var(--accent);
+}
+/* No margin of its own: the browser's 1em on a <p> adds to a flex column's gap
+   instead of collapsing into it, leaving a band of nothing below the hint. */
+.hint { font-size: 0.76rem; color: var(--ink-soft); margin: 0; }
+/* A source that did not answer. Marked, not shouted about: the run carried on
+   with the others, and this is a thing to notice rather than to be alarmed by. */
+.warn { font-size: 0.74rem; color: var(--warn, #d98a3a); white-space: nowrap; }
+.panel > button { align-self: flex-start; }
+
+/* A checkbox reads as a row, not as a stacked label like the text fields. */
+.panel label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ---------- keywords, in the rail ---------- */
+
+/* A field that looks like one input but holds finished tags and a place to
+   type the next one. */
+.tags-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.4rem;
+  min-height: 2.1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: text;
+}
+.tags-field:focus-within { border-color: var(--accent); }
+.tags-field input {
+  flex: 1;
+  min-width: 5rem;
+  border: none;
+  background: transparent;
+  padding: 0.1rem 0.15rem;
+  font-size: 0.8rem;
+}
+.tags-field input:focus { outline: none; }
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.12rem 0.2rem 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  border: 1px solid var(--line-soft);
+  color: var(--ink);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.tag button {
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+  cursor: pointer;
+}
+.tag button:hover { color: var(--ink); }
+
+/* "Исключить" is a second field inside the same block, so its heading is
+   smaller than the block's own. */
+.rail .sub {
+  margin: 0.9rem 0 0.35rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+
+/* They belong beside the buttons that act on them: these words decide what is
+   collected and summarised, not which of the results is displayed. */
+#keyword-hint { margin: 0.4rem 0 0; }
+
+/* ---------- source list ---------- */
+
+.source-list, .model-list {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.source-list li, .model-list li {
+  display: grid;
+  gap: 0.3rem 0.8rem;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.8rem;
+}
+.source-list li { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+.source-list .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.source-list .detail {
+  grid-column: 2 / -1;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.source-list li.off .name { color: var(--ink-soft); font-weight: 400; }
+.icon-btn {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.78rem;
+  background: transparent;
+}
+.icon-btn.remove { color: var(--risk); border-color: transparent; }
+.icon-btn.remove:hover { border-color: var(--risk); }
+
+
+/* ---------- model list ---------- */
+
+.model-list li { grid-template-columns: minmax(0, 1fr) auto; }
+.model-list .name { font-weight: 600; }
+.model-list .facts {
+  grid-column: 1;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--ink-soft);
+}
+.model-list .buttons { grid-row: 1 / span 2; display: flex; gap: 0.35rem; align-items: center; }
+.badge {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.05rem 0.4rem;
+  border-radius: 2px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  margin-left: 0.4rem;
+}
+.badge.on { background: var(--accent); color: var(--accent-ink); }
+
+
+/* ---------- rail counters ---------- */
+
+.stat { display: flex; align-items: baseline; gap: 0.4rem; margin: 0 0 0.2rem; }
+.stat b {
+  font-family: var(--mono);
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.stat span { font-size: 0.8rem; color: var(--ink-soft); }
+
+/* ---------- what did not make it in ---------- */
+
+/* Inside the feed, which has no width limit of its own, so this one keeps the
+   measure the other screens use: a list of short reasons stretched across a
+   4K panel reads as a table with one column. */
+/* What the feed does not contain, pinned over the corner of what it does. An
+   endless feed has no bottom for a note about the whole of it to sit at. */
+.feed-notes {
+  position: fixed;
+  bottom: 1.2rem;
+  /* Measured from the right edge of the window, which the rail does not touch. */
+  right: 1.2rem;
+  z-index: 15;
+  width: min(26rem, calc(100vw - var(--rail) - 3rem));
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.28);
+  padding: 0.6rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.skipped summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--ink-mid);
+  padding: 0.2rem 0;
+}
+.skipped summary:hover { color: var(--accent); }
+/* Opened, the list of reasons can be long. It scrolls inside the panel instead
+   of growing until it covers the feed it is a footnote to. */
+.skipped[open] {
+  max-height: min(24rem, 55vh);
+  overflow-y: auto;
+}
+.skipped .verdicts { margin: 0.7rem 0; }
+.skipped .verdicts li { grid-template-columns: minmax(0, 1fr) auto; }
+
+/* ---------- date range ---------- */
+
+.dates {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.9rem;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.dates legend { font-size: 0.85rem; color: var(--ink-mid); padding: 0 0.3rem; }
+/* The service's fields are a group inside the fieldset and take the fieldset's
+   own rhythm; the button needs a little more room than the fields do. */
+#api-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+/* This block sits above the model list and is read together with it, so it
+   takes the column's width rather than a measure of its own. */
+#provider-form { max-width: none; }
+/* Same for the source form: it sits under the list of sources and is edited
+   against it, so it takes the same measure rather than a narrower one. */
+#add-source-fold { max-width: none; }
+
+/* An icon inside a button sits on the text's line and takes the text's colour,
+   so one rule serves every button that ever gets one. */
+.icon {
+  width: 0.95em;
+  height: 0.95em;
+  vertical-align: -0.12em;
+  margin-right: 0.35em;
+  flex: none;
+}
+
+/* A row of buttons is a row: spaced, aligned, and wrapping rather than
+   overflowing when the window is narrow. */
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+/* The form inside the fold needs the same rhythm as any other panel, or its
+   fields sit against each other and the buttons under the last one. */
+#service-form,
+#add-source {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-top: 0.9rem;
+}
+#service-form > .buttons,
+#add-source > .buttons { margin-top: 0.2rem; }
+/* The free-text address appears under the list it is an alternative to, and
+   needs to sit apart from it rather than against it. */
+#api-url { margin-top: 0.4rem; }
+/* Blocks on a screen are separate things and read as such. */
+.panel + .panel { margin-top: 1.2rem; }
+details.panel > summary {
+  cursor: pointer;
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+details.panel > summary:hover { color: var(--accent); }
+.radio {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.45rem !important;
+  flex-wrap: wrap;
+}
+.radio .inline { width: auto; min-width: 5rem; }
+.radio.off { opacity: 0.5; }
+
+/* ---------- misc ---------- */
+
+#kind-hint, #query-hint { line-height: 1.4; }
+
+fieldset[data-for] { max-width: none; }
+.dates code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  background: var(--surface-alt);
+  border-radius: 2px;
+  padding: 0.05em 0.25em;
+}
+
+/* ---------- reading aloud ---------- */
+
+.card .meta { align-items: center; }
+button.play {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 0.12rem 0.5rem;
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink-mid);
+  margin-left: auto;
+}
+button.play:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+button.play.active { color: var(--accent); border-color: var(--accent); font-variant-numeric: tabular-nums; }
+
+/* The cost of the online engine is stated where it is chosen, not in a manual. */
+.warn-hint { color: var(--warn); }

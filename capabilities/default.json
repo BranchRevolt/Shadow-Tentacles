@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Everything the single window needs. Nothing here reaches the filesystem or the network directly: all of that happens in Rust, where it can be checked.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

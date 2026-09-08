@@ -1,0 +1,97 @@
+[package]
+name = "shadow-tentacles"
+version = "1.0.0"
+edition = "2024"
+description = "Desktop news aggregator. Collects articles from RSS feeds and publisher sitemaps, filters them by date and keywords, summarizes and translates them with a local or remote language model, and reads them aloud."
+authors = ["WarpCoreDev"]
+license = "GPL-3.0-or-later"
+repository = "https://github.com/BranchRevolt/Shadow-Tentacles"
+readme = "README.md"
+
+[dependencies]
+anyhow = "1.0.104"
+chrono = "0.4.45"
+# Without "termination" SIGTERM keeps its default disposition and the process
+# dies without unloading the model or checkpointing the database.
+ctrlc = { version = "3.5.2", features = ["termination"] }
+directories = "6.0.0"
+dom_smoothie = "0.18.0"
+encoding_rs = "0.8.35"
+espeak-rs = "0.2.0"
+feed-rs = "2.4.0"
+flate2 = "1.1.9"
+futures-util = "0.3.34"
+hex = "0.4.3"
+memmap2 = "0.9.11"
+msedge-tts = "0.4.0"
+once_cell = "1.21.4"
+open = "5.4.3"
+parking_lot = "0.12.5"
+piper-rs = "0.2.0"
+quick-xml = "0.41.0"
+regex = "1.13.1"
+reqwest = { version = "0.13.4", default-features = false, features = [
+    "json",
+    "stream",      # bytes_stream(), to download a GGUF without buffering it in RAM
+    "rustls",      # no OpenSSL to link
+    "http2",
+    "system-proxy",
+    "gzip",
+    "brotli",
+    "charset",     # news sites still serve windows-1251 and iso-8859-1
+] }
+rodio = "0.22.2"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+rust-stemmers = "1.2.0"
+scraper = "0.27.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.11.0"
+symphonia = { version = "0.5", default-features = false, features = ["mp3"] }
+sysinfo = "0.38.4"
+tauri = "2"
+tauri-plugin-dialog = "2.7.3"
+thiserror = "2.0.20"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "fs", "time", "signal", "sync"] }
+toml = "1.1.4"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+url = "2.5.8"
+whatlang = "0.18.0"
+
+# The version selects a vendored copy of llama.cpp. From llama-cpp-sys-2 0.1.154
+# the Vulkan build calls find_package(SPIRV-Headers), which ordinary
+# distributions do not ship; 0.1.146 is the last revision without it. Cargo.lock
+# pins llama-cpp-sys-2 to the same version.
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+llama-cpp-2 = { version = "=0.1.146", features = ["vulkan"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+llama-cpp-2 = { version = "=0.1.146", features = ["metal"] }
+
+# Direct because the window is resized in GTK's own coordinates; see monitor_fix.rs.
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+
+[profile.dev]
+incremental = true
+# Full debuginfo on a statically-linked llama.cpp costs tens of GB in target/.
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.release]
+lto = "thin"
+opt-level = 3
+codegen-units = 1
+strip = true
+
+[build-dependencies]
+tauri-build = "2"
+
+# piper-rs is vendored under vendor/ with one line changed: it pins ort to
+# rc.12, whose ONNX Runtime needs glibc 2.38 and has no macOS Intel build.
+# See vendor/piper-rs/Cargo.toml.
+[patch.crates-io]
+piper-rs = { path = "vendor/piper-rs" }

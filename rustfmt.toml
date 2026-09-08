@@ -1,0 +1,5 @@
+# The style this codebase was written in: dense structs and calls, wrapped at
+# 100 columns. Without this file the default heuristics explode every short
+# initialiser onto four lines, which is a whole-repository diff nobody asked for.
+max_width = 100
+use_small_heuristics = "Max"

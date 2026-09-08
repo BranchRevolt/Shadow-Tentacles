@@ -1,0 +1,456 @@
+<!doctype html>
+<!-- SPDX-FileCopyrightText: 2026 WarpCoreDev -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- The text below is the English dictionary: i18n.js harvests every node
+     marked with data-i18n on load, and the other six languages are written out
+     as overrides in that file. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shadow Tentacles</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<aside class="rail">
+  <header class="brand">
+    <h1>Shadow&nbsp;Tentacles</h1>
+    <p id="hardware" class="muted small">—</p>
+  </header>
+
+  <nav class="nav" id="nav">
+    <button data-view="feed" class="nav-item" aria-pressed="true" data-i18n="nav.feed">Feed</button>
+    <button data-view="sources" class="nav-item" data-i18n="nav.sources">Sources</button>
+    <button data-view="models" class="nav-item" data-i18n="nav.models">Models</button>
+    <button data-view="settings" class="nav-item" data-i18n="nav.settings">Settings</button>
+  </nav>
+
+  <section class="block">
+    <h2 data-i18n="rail.actions">Actions</h2>
+    <div class="actions">
+      <button id="btn-collect" class="primary" data-i18n="action.collect">Collect news</button>
+      <button id="btn-summarize" class="primary" data-i18n="action.summarize">Write summaries</button>
+      <button id="btn-cancel" class="danger" hidden data-i18n="action.stop">Stop</button>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2 data-i18n="rail.keywords">Keywords</h2>
+    <!-- A tag is finished by a comma or Enter; the input stays put so typing is
+         never interrupted by a redraw. -->
+    <div class="tags-field" id="include-field">
+      <input id="include-input"
+             data-i18n-placeholder="keywords.placeholder" placeholder="word or phrase, separated by commas"
+             data-i18n-aria="keywords.aria" aria-label="keywords">
+    </div>
+    <p id="keyword-hint" class="muted small"></p>
+
+    <h3 class="sub" data-i18n="keywords.exclude">Exclude</h3>
+    <div class="tags-field" id="exclude-field">
+      <input id="exclude-input"
+             data-i18n-placeholder="keywords.placeholder" placeholder="word or phrase, separated by commas"
+             data-i18n-aria="keywords.exclude_aria" aria-label="words to exclude">
+    </div>
+  </section>
+
+  <section class="block">
+    <h2 data-i18n="rail.model">Model</h2>
+    <p id="model" class="mono">—</p>
+    <!-- The way to get a model, not a remark about not having one. -->
+    <button id="btn-get-model" class="primary" hidden></button>
+    <button id="btn-unload" class="ghost" data-i18n="action.unload">Unload from memory</button>
+  </section>
+
+  <section class="block">
+    <h2 data-i18n="rail.collected">Collected</h2>
+    <p class="stat"><b id="stat-articles">0</b> <span id="stat-articles-label">articles collected</span></p>
+    <p class="stat"><b id="stat-summaries">0</b> <span id="stat-summaries-label">summaries ready</span></p>
+  </section>
+</aside>
+
+<main>
+  <div id="progress" class="progress" hidden>
+    <div class="bar" id="bar"><span id="bar-fill"></span></div>
+    <p id="progress-label" class="muted small">—</p>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <!-- What is being read now, pinned along the foot of the working area,
+       mirroring the progress bar at the top. -->
+  <div id="player" class="player" hidden>
+    <div class="player-line"><span id="player-fill"></span></div>
+    <div class="player-body">
+      <span class="buttons">
+        <button type="button" class="ghost round" id="player-prev" data-i18n-title="player.prev" title="Previous">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+            <path d="M18 5v14l-11-7z"/><rect x="5" y="5" width="2" height="14" rx="1"/>
+          </svg>
+        </button>
+        <button type="button" class="ghost round" id="player-toggle" data-i18n-title="player.pause" title="Pause">
+          <svg class="icon mark-pause" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+            <rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>
+          </svg>
+          <svg class="icon mark-play" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+            <path d="M7 5v14l12-7z"/>
+          </svg>
+        </button>
+        <button type="button" class="ghost round" id="player-next" data-i18n-title="player.next" title="Next">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+            <path d="M6 5v14l11-7z"/><rect x="17" y="5" width="2" height="14" rx="1"/>
+          </svg>
+        </button>
+      </span>
+
+      <button type="button" class="player-what" id="player-title"></button>
+
+      <span class="player-meta">
+        <span id="player-where"></span>
+        <span class="spinner" id="player-getting" hidden></span>
+      </span>
+
+      <button type="button" class="ghost round" id="player-close" data-i18n-title="player.close" title="Stop reading">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ─────────────── the feed ─────────────── -->
+  <section class="view" data-view="feed">
+    <div class="view-head">
+      <h2 data-i18n="feed.head">Feed</h2>
+      <div class="langs" id="langs">
+        <button data-lang="ru" class="chip">RU</button>
+        <button data-lang="en" class="chip">EN</button>
+        <button data-lang="de" class="chip">DE</button>
+        <button data-lang="fr" class="chip">FR</button>
+        <button data-lang="es" class="chip">ES</button>
+        <button data-lang="pt" class="chip">PT</button>
+      </div>
+    </div>
+
+    <div class="feed-search">
+      <input type="search" id="feed-search" autocomplete="off"
+             data-i18n-placeholder="feed.search" placeholder="Search the feed">
+      <button type="button" class="ghost" id="read-all">
+        <!-- Headphones: the list, out loud, from the top. -->
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none"
+             stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 14v-2a8 8 0 0 1 16 0v2"/>
+          <rect x="2" y="14" width="4.5" height="7" rx="1.5"/>
+          <rect x="17.5" y="14" width="4.5" height="7" rx="1.5"/>
+        </svg>
+        <span data-i18n="feed.read_all">Read them all</span>
+      </button>
+    </div>
+
+    <div id="feed" class="feed"></div>
+
+    <!-- The end of what has been drawn. When it comes into view the next page
+         is asked for, so the reader never has to find a button. -->
+    <div id="feed-end" class="feed-end" hidden>
+      <span class="spinner" aria-hidden="true"></span>
+      <span data-i18n="feed.loading">Loading more…</span>
+    </div>
+
+    <!-- Pinned over the feed rather than under it: these are about the whole
+         feed, which has no bottom worth scrolling to. -->
+    <div class="feed-notes" id="feed-notes" hidden>
+      <p class="hint" id="waiting" hidden></p>
+
+      <details class="skipped" id="skipped" hidden>
+        <summary data-i18n="feed.skipped_head">What didn't make the feed, and why</summary>
+        <ul id="verdicts" class="verdicts"></ul>
+        <p class="hint" data-i18n="feed.skipped_hint">Filtered out before the model read them.</p>
+      </details>
+    </div>
+
+    <div id="empty" class="empty" hidden>
+      <h3 data-i18n="feed.empty_head">Nothing here yet</h3>
+      <p data-i18n="feed.empty_body">Collect the news, then write the summaries — the cards will show up here.</p>
+    </div>
+
+    <div id="no-matches" class="empty" hidden>
+      <h3 data-i18n="feed.no_matches_head">Nothing matches that</h3>
+      <p data-i18n="feed.no_matches_body">The word is looked for in the summaries and in the articles behind them.</p>
+    </div>
+  </section>
+
+  <!-- ─────────────── sources ─────────────── -->
+  <section class="view" data-view="sources" hidden>
+    <div class="view-head"><h2 data-i18n="sources.head">Sources</h2></div>
+    <ul id="source-list" class="source-list"></ul>
+
+    <details class="panel" id="add-source-fold">
+      <summary id="source-form-head" data-i18n="sources.add_head">Add a source</summary>
+
+      <form id="add-source">
+        <label><span data-i18n="sources.kind">Where the news comes from</span>
+          <select name="kind" id="kind">
+            <option value="rss" data-i18n="kind.rss">A site's feed — RSS, Atom or JSON Feed</option>
+            <option value="json_api" data-i18n="kind.json_api">A service with a JSON API</option>
+            <option value="html_list" data-i18n="kind.html_list">A page listing articles</option>
+          </select>
+          <span class="hint" id="kind-hint"></span>
+        </label>
+
+        <label><span data-i18n="sources.name">Name</span> <span class="hint" data-i18n="common.optional">optional</span>
+          <input name="title" data-i18n-placeholder="sources.name_placeholder" placeholder="name of the source">
+        </label>
+
+        <label data-for="rss html_list json_api"><span data-i18n="sources.url">Address</span>
+          <input name="url" placeholder="https://example.com/feed">
+        </label>
+
+        <label data-for="rss html_list json_api"><span data-i18n="sources.search_url">Search address</span>
+          <input name="search_url" placeholder="https://example.com/search?q={query}">
+          <span class="hint" data-i18n="sources.search_url_hint">Where your keywords go, if this site can be asked. Empty — its map answers instead.</span>
+        </label>
+
+        <label data-for="rss html_list json_api"><span data-i18n="sources.sitemap_url">Map address</span> <span class="hint" data-i18n="common.optional">optional</span>
+          <input name="sitemap_url" placeholder="https://example.com/sitemap-news.xml">
+          <span class="hint" data-i18n="sources.sitemap_url_hint">Found by itself. Fill in only to override, or empty it to stop looking.</span>
+        </label>
+
+        <label data-for="rss json_api"><span data-i18n="sources.min_points">Popularity threshold</span> <span class="hint" data-i18n="common.optional">optional</span>
+          <input name="min_points" type="number" min="0" step="1" placeholder="100">
+          <span class="hint" data-i18n="sources.min_points_hint">Fills <code>{min_points}</code> in the address.</span>
+        </label>
+
+        <label data-for="rss html_list json_api"><span data-i18n="sources.lang">Source language</span>
+          <select name="lang">
+            <option value="" data-i18n="lang.unset">not specified</option>
+            <option value="ru" data-i18n="lang.ru">Russian</option>
+            <option value="en" data-i18n="lang.en">English</option>
+            <option value="de" data-i18n="lang.de">German</option>
+            <option value="fr" data-i18n="lang.fr">French</option>
+            <option value="es" data-i18n="lang.es">Spanish</option>
+            <option value="pt" data-i18n="lang.pt">Portuguese</option>
+          </select>
+        </label>
+
+        <label data-for="html_list"><span data-i18n="sources.links_selector">CSS selector for links to articles</span>
+          <input name="links_selector" placeholder="article h2 a">
+        </label>
+
+        <label data-for="html_list"><span data-i18n="sources.body_selector">CSS selector for the article body</span> <span class="hint" data-i18n="common.optional">optional</span>
+          <input name="body_selector" placeholder="div.article-body">
+        </label>
+
+        <fieldset data-for="json_api" class="dates">
+          <legend data-i18n="sources.map_head">Where things are in the response</legend>
+          <p class="hint" data-i18n="sources.map_hint">Dotted path. For Lobsters: list — empty, link — <code>url</code>, title — <code>title</code>, date — <code>created_at</code>, score — <code>score</code>.</p>
+
+          <label><span data-i18n="sources.items_path">Path to the list</span> <span class="hint" data-i18n="sources.items_path_hint">leave empty if the response is itself a list</span>
+            <input name="items_path" placeholder="data.children">
+          </label>
+          <label><span data-i18n="sources.item_url">Link to the article</span> <span class="hint" data-i18n="common.required">required</span>
+            <input name="item_url_path" placeholder="url">
+          </label>
+          <label><span data-i18n="sources.item_title">Title</span>
+            <input name="item_title_path" placeholder="title">
+          </label>
+          <label><span data-i18n="sources.item_date">Publication date</span>
+            <input name="item_date_path" placeholder="created_at">
+          </label>
+          <label><span data-i18n="sources.item_score">Points or score</span>
+            <input name="item_score_path" placeholder="score">
+          </label>
+
+          <label><span data-i18n="sources.headers">Request headers</span> <span class="hint" data-i18n="sources.headers_when">if the service needs a key</span>
+            <textarea name="headers" rows="2" data-i18n-placeholder="sources.headers_placeholder" placeholder="Authorization: Bearer your-key"></textarea>
+            <span class="hint" data-i18n="sources.headers_hint">One per line, name and value separated by a colon. Stored only in your settings file.</span>
+          </label>
+
+          <p class="hint" data-i18n="sources.template_hint">The address also takes <code>{since}</code> and <code>{until}</code> in seconds, or <code>{since_date}</code> and <code>{until_date}</code> as YYYY-MM-DD.</p>
+        </fieldset>
+
+        <span class="buttons">
+          <button type="submit" class="primary" id="save-source" data-i18n="sources.add_button">Add</button>
+          <button type="button" class="ghost" id="cancel-edit" hidden data-i18n="sources.cancel">Cancel</button>
+        </span>
+      </form>
+    </details>
+  </section>
+
+  <!-- ─────────────── models ─────────────── -->
+  <section class="view" data-view="models" hidden>
+    <div class="view-head"><h2 data-i18n="models.head">Models</h2></div>
+
+    <!-- Two lists and a form. Choosing a model is the whole of the choice: a
+         local one summarizes locally, a service summarizes at the service. -->
+    <section class="panel">
+      <h3 data-i18n="models.local_head">On this PC</h3>
+      <select id="local-list"></select>
+      <p id="local-facts" class="hint"></p>
+      <span class="buttons" id="local-buttons"></span>
+    </section>
+
+    <section class="panel">
+      <h3 data-i18n="models.remote_head">External models</h3>
+      <span class="hint warn-hint" data-i18n="models.service_caveat">Needs a connection, and the whole text of every article is sent to the address you give.</span>
+      <select id="service-list"></select>
+      <p id="service-empty" class="hint" hidden data-i18n="models.no_services">Nothing saved yet — add one below.</p>
+      <span class="buttons" id="service-buttons"></span>
+    </section>
+
+    <details class="panel" id="add-service">
+      <summary data-i18n="models.add_head">Add an external model</summary>
+
+      <form id="service-form">
+        <label><span data-i18n="models.api_url">Address</span>
+          <select name="api_preset" id="api-preset">
+            <option value="https://api.openai.com/v1">OpenAI</option>
+            <option value="https://openrouter.ai/api/v1">OpenRouter</option>
+            <option value="https://api.deepseek.com/v1">DeepSeek</option>
+            <option value="http://localhost:11434/v1">Ollama</option>
+            <option value="http://localhost:1234/v1">LM Studio</option>
+            <option value="http://localhost:8080/v1">llama.cpp</option>
+            <option value="" data-i18n="models.api_manual">Another address…</option>
+          </select>
+          <input name="api_url" id="api-url" placeholder="https://example.com/v1">
+        </label>
+
+        <label><span data-i18n="models.api_model">Model</span>
+          <input name="api_model" placeholder="gpt-4o-mini">
+          <span class="hint" data-i18n="models.api_model_hint">Whatever the service calls it: <code>gpt-4o-mini</code>, <code>deepseek-chat</code>, <code>qwen2.5:14b</code>.</span>
+        </label>
+
+        <label><span data-i18n="models.api_key">Key</span> <span class="hint" data-i18n="models.api_key_when">if the service asks for one</span>
+          <input name="api_key" type="password" autocomplete="off">
+        </label>
+
+        <span class="buttons">
+          <button type="submit" class="primary" data-i18n="models.api_save">Add to the list</button>
+          <button type="button" class="ghost" id="check-service" data-i18n="models.api_check">Check it answers</button>
+        </span>
+      </form>
+    </details>
+  </section>
+
+  <!-- ─────────────── settings ─────────────── -->
+  <section class="view" data-view="settings" hidden>
+    <div class="view-head"><h2 data-i18n="settings.head">Settings</h2></div>
+    <form id="settings-form" class="panel">
+      <label><span data-i18n="settings.ui_lang">Interface language</span>
+        <select name="ui_lang" id="ui-lang"></select>
+      </label>
+
+      <label><span data-i18n="settings.output_lang">Summary language</span>
+        <select name="output_lang">
+          <option value="ru" data-i18n="lang.ru">Russian</option>
+          <option value="en" data-i18n="lang.en">English</option>
+          <option value="de" data-i18n="lang.de">German</option>
+          <option value="fr" data-i18n="lang.fr">French</option>
+          <option value="es" data-i18n="lang.es">Spanish</option>
+          <option value="pt" data-i18n="lang.pt">Portuguese</option>
+        </select>
+      </label>
+
+      <fieldset class="dates">
+        <legend data-i18n="settings.range_head">What period to collect</legend>
+
+        <label class="radio">
+          <input type="radio" name="range_mode" value="rolling" checked>
+          <span data-i18n="settings.range_last">over the last</span>
+          <input name="collect_days" type="number" min="0" max="365" step="1" class="inline">
+          <span data-i18n="settings.range_days">days</span>
+        </label>
+
+        <label class="radio">
+          <input type="radio" name="range_mode" value="explicit">
+          <span data-i18n="settings.range_from">from</span>
+          <input name="collect_from" type="date" class="inline">
+          <span data-i18n="settings.range_to">to</span>
+          <input name="collect_to" type="date" class="inline">
+        </label>
+
+        <p class="hint" data-i18n="settings.range_hint">Either date can be left empty; zero days means no limit. A source reaches back as far as its own map goes — where there is none, only its feed's last day or two.</p>
+      </fieldset>
+
+      <label><span data-i18n="settings.limit">Articles in a batch</span>
+        <input name="summarize_limit" type="number" min="1" max="500" step="1">
+        <span class="hint" data-i18n="settings.limit_hint">A run goes through everything collected, a batch at a time, showing each batch before starting the next. Stop it whenever you like.</span>
+      </label>
+
+      <fieldset class="dates">
+        <legend data-i18n="settings.speech_head">Reading aloud</legend>
+
+        <label><span data-i18n="settings.speech_engine">Who reads</span>
+          <select name="speech_engine">
+            <option value="local" data-i18n="engine.local">on this PC — Piper</option>
+            <option value="online" data-i18n="engine.online">over the internet — Microsoft</option>
+          </select>
+          <span class="hint warn-hint" id="speech-caveat" hidden></span>
+        </label>
+
+        <label><span data-i18n="settings.voice">Voice</span>
+          <select name="speech_voice" id="speech-voice">
+            <option value="" data-i18n="voice.auto">choose for me</option>
+          </select>
+          <span class="hint" id="voice-hint"></span>
+        </label>
+
+        <ul id="voice-list" class="model-list"></ul>
+
+        <label><span data-i18n="settings.rate">Speaking rate</span>
+          <input name="speech_rate" type="number" min="0.5" max="2" step="0.05">
+          <span class="hint" data-i18n="settings.rate_hint">1.0 is the voice's own pace; higher is slower.</span>
+        </label>
+
+        <p class="hint" id="audio-usage"></p>
+        <button type="button" class="ghost" id="clear-audio" data-i18n="settings.clear_audio">Delete the saved recordings</button>
+      </fieldset>
+
+      <fieldset class="dates">
+        <legend data-i18n="settings.storage_head">What is kept on disk</legend>
+
+        <label><span data-i18n="settings.models_dir">Where models are kept</span>
+          <input name="models_dir" id="models-dir" readonly>
+          <span class="buttons">
+            <button type="button" class="ghost" id="pick-models-dir" data-i18n="settings.choose_folder">Choose a folder…</button>
+            <button type="button" class="ghost" id="reset-models-dir" data-i18n="settings.default_folder">Use the default</button>
+          </span>
+        </label>
+
+        <label><span data-i18n="settings.keep_days">Forget articles older than (days)</span>
+          <input name="keep_days" type="number" min="0" max="3650" step="1">
+          <span class="hint" data-i18n="settings.keep_days_hint">Zero keeps everything. Summaries and recordings are deleted with the article.</span>
+        </label>
+
+        <p class="hint" id="db-usage"></p>
+        <span class="buttons">
+          <button type="button" class="ghost" id="recheck-now">
+            <!-- Two arrows round a circle: the same page, looked at again. -->
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none"
+                 stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 11a8 8 0 0 0-13.7-5.7L3 8.5"/>
+              <path d="M3 4v4.5h4.5"/>
+              <path d="M4 13a8 8 0 0 0 13.7 5.7L21 15.5"/>
+              <path d="M21 20v-4.5h-4.5"/>
+            </svg>
+            <span data-i18n="settings.recheck">Check the articles again</span>
+          </button>
+          <button type="button" class="ghost" id="prune-now" data-i18n="settings.prune_now">Forget the stale ones now</button>
+          <button type="button" class="danger" id="clear-db" data-i18n="settings.clear_db">Empty the database</button>
+        </span>
+        <span class="hint" data-i18n="settings.recheck_hint">Re-checks what is already downloaded: some of what was filtered out may come back. No network, no model.</span>
+        <span class="hint" data-i18n="settings.clear_db_hint">Deletes every article, summary and recording. Settings and sources stay.</span>
+      </fieldset>
+
+      <button type="submit" class="primary" data-i18n="settings.save">Save</button>
+      <p class="hint" id="config-path"></p>
+    </form>
+  </section>
+</main>
+
+<script src="i18n.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
