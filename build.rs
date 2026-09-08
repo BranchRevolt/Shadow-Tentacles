@@ -14,13 +14,13 @@ fn main() {
 /// espeak-rs-sys builds the data into its own `OUT_DIR` and compiles that
 /// absolute path in as espeak-ng's fallback location, which resolves to nothing
 /// on any other machine. The crate exports no metadata naming the directory, so
-/// it is located by walking the build directory Cargo gave this script.
+/// it is located by walking the build directory Cargo gave this script. It is a
+/// build-dependency as well as a normal one, because a normal dependency is not
+/// built when a build script runs.
 fn pack_espeak_data() {
     let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));
-    let source = find_espeak_data(&out_dir).expect(
-        "espeak-ng-data was not found under the build directory; \
-         espeak-rs-sys must be built before this crate",
-    );
+    let source = find_espeak_data(&out_dir)
+        .expect("espeak-ng-data was not found under the build directory");
 
     let mut files: Vec<(String, PathBuf)> = Vec::new();
     collect(&source, &source, &mut files);
