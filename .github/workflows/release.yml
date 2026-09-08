@@ -1,0 +1,168 @@
+# Builds the installers and attaches them to a draft release.
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to name the release, e.g. v1.0.0. The build uses the branch this is launched from; the tag is created when the draft release is published."
+        required: true
+      only:
+        description: "Which platforms to build"
+        required: false
+        default: all
+        type: choice
+        options: [all, linux, windows, macos-arm, macos-intel]
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  # A job-level `if` cannot read the `matrix` context, so the platform picker
+  # is applied here and the result handed to `build` as JSON. Rebuilding one
+  # platform after a fix then costs one runner instead of four.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - id: pick
+        shell: bash
+        run: |
+          all='[
+            {"id":"linux",      "os":"ubuntu-22.04",     "target":"x86_64-unknown-linux-gnu"},
+            {"id":"windows",    "os":"windows-2025",     "target":"x86_64-pc-windows-msvc"},
+            {"id":"macos-arm",  "os":"macos-14",         "target":"aarch64-apple-darwin"},
+            {"id":"macos-intel","os":"macos-15-intel",   "target":"x86_64-apple-darwin"}
+          ]'
+          only="${{ inputs.only }}"
+          if [ -z "$only" ] || [ "$only" = "all" ]; then
+            echo "matrix=$(echo "$all" | jq -c .)" >> "$GITHUB_OUTPUT"
+          else
+            echo "matrix=$(echo "$all" | jq -c --arg o "$only" '[.[] | select(.id == $o)]')" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      # No `ref`: a tag push checks out the tag, and a manual run checks out the
+      # branch it was launched from. Checking out `inputs.tag` would require the
+      # tag to exist before the build that is meant to produce the release.
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # Without a cache every run recompiles ggml and espeak-ng from source.
+      # Windows moves CARGO_TARGET_DIR out of the workspace below, so there is no
+      # workspace target for this to cache and only the registry is kept.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.id }}
+          workspaces: ". -> target"
+          cache-targets: ${{ matrix.id != 'windows' }}
+
+      # Linux. Tauri v2 links against webkit2gtk 4.1. The Vulkan shader
+      # compiler is not installable as `glslc` on 22.04, so the LunarG
+      # repository provides `vulkan-sdk` instead.
+      - name: Linux build dependencies
+        if: matrix.id == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
+            libayatana-appindicator3-dev libasound2-dev \
+            build-essential curl wget file cmake ninja-build
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc \
+            | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc > /dev/null
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list \
+            https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+          sudo apt-get update
+          sudo apt-get install -y vulkan-sdk
+
+      # Windows. Two settings, for two documented problems:
+      #
+      # 1. The Visual Studio generator cannot build this. ggml configures its
+      #    `vulkan-shaders-gen` helper through ExternalProject_Add, and the
+      #    nested run fails with "No CMAKE_CXX_COMPILER could be found" and
+      #    "The system cannot find the batch label specified - VCEnd"; CMake
+      #    documents the parent generator as inherited, but it is not in
+      #    practice. llama.cpp's own build-vulkan.yml uses Ninja for this
+      #    reason. The `cmake` crate reads CMAKE_GENERATOR from the environment
+      #    (cmake 0.1.58, src/lib.rs), and msvc-dev-cmd lets Ninja find cl.exe.
+      #
+      # 2. MAX_PATH. Measured on a completed local build, the deepest path under
+      #    the build directory is 200 characters, inside
+      #    ggml-vulkan/vulkan-shaders-gen-prefix. From the runner's own workspace
+      #    that becomes 239 against a limit of 260; CARGO_TARGET_DIR=C:\b brings
+      #    it to 197.
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: matrix.id == 'windows'
+      - name: Windows build dependencies
+        if: matrix.id == 'windows'
+        run: |
+          choco install ninja -y --no-progress
+          echo "CMAKE_GENERATOR=Ninja" >> $env:GITHUB_ENV
+          echo "CARGO_TARGET_DIR=C:\b" >> $env:GITHUB_ENV
+      # Installed from LunarG's own installer rather than through a third-party
+      # action, so the version and the install path are both ours to state.
+      #
+      # The file name and the unattended flags are LunarG's documented form:
+      # `vulkansdk-windows-X64-<version>.exe --root <dir> --accept-licenses
+      # --default-answer --confirm-command install`. The older
+      # `VulkanSDK-<version>-Installer.exe` returns 404.
+      #
+      # VULKAN_SDK must name the versioned directory: llama-cpp-sys-2's build.rs
+      # reads it and links `<VULKAN_SDK>\Lib\vulkan-1`.
+      - name: Vulkan SDK
+        if: matrix.id == 'windows'
+        run: |
+          $ver = "1.4.357.0"
+          $url = "https://sdk.lunarg.com/sdk/download/$ver/windows/vulkansdk-windows-X64-$ver.exe"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\vulkan.exe"
+          Start-Process -FilePath "$env:RUNNER_TEMP\vulkan.exe" -Wait -ArgumentList @(
+            "--root", "C:\VulkanSDK\$ver", "--accept-licenses",
+            "--default-answer", "--confirm-command", "install"
+          )
+          echo "VULKAN_SDK=C:\VulkanSDK\$ver" >> $env:GITHUB_ENV
+          echo "C:\VulkanSDK\$ver\Bin" >> $env:GITHUB_PATH
+
+      # macOS. Below 10.15 libc++ marks std::filesystem unavailable and
+      # ggml-backend-reg.cpp will not compile. MACOSX_DEPLOYMENT_TARGET in the
+      # environment does not reach the compiler, so the deployment target goes
+      # through a toolchain file, which the `cmake` crate does read from it.
+      - name: macOS deployment target
+        if: startsWith(matrix.id, 'macos')
+        run: |
+          if [ "${{ matrix.id }}" = "macos-arm" ]; then TARGET=11.0; else TARGET=10.15; fi
+          echo "set(CMAKE_OSX_DEPLOYMENT_TARGET $TARGET CACHE STRING \"\" FORCE)" > "$RUNNER_TEMP/osx.cmake"
+          echo "CMAKE_TOOLCHAIN_FILE=$RUNNER_TEMP/osx.cmake" >> "$GITHUB_ENV"
+          echo "MACOSX_DEPLOYMENT_TARGET=$TARGET" >> "$GITHUB_ENV"
+        shell: bash
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: "Shadow Tentacles ${{ github.event.inputs.tag || github.ref_name }}"
+          releaseBody: "Installers for Linux, Windows and macOS. The releases are not signed, so the operating system will object on first run; the README says what to expect and how to get past it."
+          releaseDraft: true
+          prerelease: false
+
+      # No `--target`. Every runner here builds for its own host, and passing the
+      # flag would move the output to target/<triple>/release, adding 21 to 25
+      # characters to every path below it. espeak-ng 1.52, which espeak-rs-sys
+      # vendors, compiles its phoneme data through a 180-byte buffer
+      # (compiledata.c: `char filename[sizeof(path_home)+20]`, path_home being
+      # 160 bytes on POSIX), and the extra segment pushes the phsource paths past
+      # it: every one of them truncated at exactly 179 characters and the build
+      # failed with "Failed to open" and "Compile error".
