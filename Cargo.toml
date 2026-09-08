@@ -89,6 +89,10 @@ strip = true
 
 [build-dependencies]
 tauri-build = "2"
+# Not used by the build script, but a normal dependency is not built when a
+# build script runs. This is what guarantees espeak-ng-data exists in time to be
+# packed; see build.rs.
+espeak-rs-sys = "0.2.0"
 
 # piper-rs is vendored under vendor/ with one line changed: it pins ort to
 # rc.12, whose ONNX Runtime needs glibc 2.38 and has no macOS Intel build.
